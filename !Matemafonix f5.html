@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Matematonix</title>
+<style>
+body{font-family:Arial;background:#0b1b52;color:#fff;margin:0;padding:20px}
+button{padding:10px;margin:4px;cursor:pointer}
+input{padding:8px;margin:4px}
+.panel{display:none}.active{display:block}
+.nav{margin:10px 0}
+.pack{width:160px;height:220px;background:orange;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:80px;margin:20px auto;cursor:pointer}
+.card{background:white;color:black;padding:10px;margin:10px;border-radius:10px;display:inline-block;width:180px}
+.card-common{border:4px solid limegreen}
+.card-rare{border:4px solid dodgerblue}
+.card-epic{border:4px solid violet}
+.card-legendary{border:4px solid gold;box-shadow:0 0 15px gold}
+</style>
+</head>
+<body>
+
+<h1>Matematonix</h1>
+
+<div id="auth" class="active panel">
+<button onclick="showAuth('reg')">Rejestracja</button>
+<button onclick="showAuth('log')">Zaloguj</button>
+
+<div id="reg" class="active panel">
+<h2>Rejestracja</h2>
+<input id="regUser" placeholder="Login"><br>
+<input id="regPass" type="password" placeholder="Hasło"><br>
+<button onclick="register()">Zarejestruj</button>
+<p id="regInfo"></p>
+</div>
+
+<div id="log" class="panel">
+<h2>Logowanie</h2>
+<input id="loginUser" placeholder="Login"><br>
+<input id="loginPass" type="password" placeholder="Hasło"><br>
+<button onclick="login()">Przejdź do gry</button>
+<p id="loginInfo"></p>
+</div>
+</div>
+
+<div id="game" class="panel">
+<div class="nav">
+<button onclick="tab('home')">Gra</button>
+<button onclick="tab('cards')">Moje Karty</button>
+<button onclick="tab('shop')">Sklep</button>
+</div>
+
+<div id="home">
+<h2>Witaj <span id="nick"></span></h2>
+<p>Otwórz paczkę i rozwiąż równanie.</p>
+<div class="pack" onclick="openPack()">?</div>
+<div id="anim"></div>
+<div id="task"></div>
+<h3>Punkty: <span id="points">0</span></h3>
+<h3>Poziom: <span id="level">1</span></h3>
+<h3>💰 Mathisy: <span id="mathisy">0</span></h3>
+<p id="msg"></p>
+</div>
+
+<div id="cards" style="display:none">
+<h2>Moje Karty</h2>
+<div id="collection"></div>
+</div>
+
+<div id="shop" style="display:none">
+<h2>Sklep</h2>
+<p>Twoje Mathisy: <span id="mathisyShop">0</span></p>
+<button onclick="buyPack(25,'rare')">Rzadka Paczka - 25 Mathisów</button><br>
+<button onclick="buyPack(75,'epic')">Epicka Paczka - 75 Mathisów</button><br>
+<button onclick="buyPack(150,'legendary')">Legendarna Paczka - 150 Mathisów</button>
+</div>
+</div>
+
+<script>
+let currentUser="";
+
+function showAuth(id){
+ reg.style.display="none";
+ log.style.display="none";
+ document.getElementById(id).style.display="block";
+}
+
+function register(){
+ let u=regUser.value.trim();
+ let p=regPass.value;
+
+ if(u.length<3){regInfo.innerText="Min 3 znaki";return;}
+
+ localStorage.setItem("user_"+u,JSON.stringify({
+  password:p,
+  points:0,
+  mathisy:0,
+  first:false,
+  cards:[]
+ }));
+
+ regInfo.innerText="Konto utworzone. Kliknij Zaloguj.";
+}
+
+function login(){
+ let u=loginUser.value.trim();
+ let p=loginPass.value;
+
+ let data=localStorage.getItem("user_"+u);
+ if(!data){loginInfo.innerText="Brak konta";return;}
+
+ let acc=JSON.parse(data);
+
+ if(acc.password!==p){
+  loginInfo.innerText="Złe hasło";
+  return;
+ }
+
+ currentUser=u;
+  localStorage.setItem("currentUser",u);
+ auth.style.display="none";
+ game.style.display="block";
+ nick.innerText=u;
+
+ updateStats();
+ renderCards();
+}
+
+function save(acc){
+ localStorage.setItem("user_"+currentUser,JSON.stringify(acc));
+}
+
+function getAcc(){
+ return JSON.parse(localStorage.getItem("user_"+currentUser));
+}
+
+function updateStats(){
+ let a=getAcc();
+ points.innerText=a.points;
+ level.innerText=Math.floor(a.points/5)+1;
+}
+
+function tab(name){
+ home.style.display="none";
+ cards.style.display="none";
+ document.getElementById(name).style.display="block";
+}
+
+function openPack(){
+ let f=0;
+ let arr=["🎁","✨","🎁","✨"];
+ let t=setInterval(()=>{
+  anim.innerHTML="<h2>"+arr[f%arr.length]+"</h2>";
+  f++;
+  if(f>6){clearInterval(t);generateTask();}
+ },200);
+}
+
+function rarityByDifficulty(max){
+ if(max<20) return "common";
+ if(max<40) return "rare";
+ if(max<70) return "epic";
+ return "legendary";
+}
+
+function generateTask(){
+ let lvl=Math.floor(getAcc().points/5)+1;
+ let max=10+lvl*5;
+
+ let a=Math.floor(Math.random()*max)+1;
+ let b=Math.floor(Math.random()*max)+1;
+
+ let rar=rarityByDifficulty(max);
+
+ task.innerHTML=`
+ <div class="card card-${rar}">
+ <h3>${rar.toUpperCase()}</h3>
+ <h2>${a} + ${b}</h2>
+ <input id="ans" placeholder="wynik">
+ <button onclick="checkAns(${a+b},'${a} + ${b}','${rar}')">Sprawdź</button>
+ </div>`;
+}
+
+function checkAns(correct,eq,rar){
+ let v=Number(document.getElementById("ans").value);
+
+ if(v!==correct){
+  msg.innerText="❌ Zła odpowiedź";
+  return;
+ }
+
+ let acc=getAcc();
+ acc.points++;
+
+ acc.cards.push({
+  equation:eq,
+  rarity:rar
+ });
+
+ if(!acc.first){
+  acc.first=true;
+  msg.innerText="🎉 Zdobyłeś pierwszy punkt!";
+ }else{
+  msg.innerText="✅ Zdobyto kartę: "+rar;
+ }
+
+ save(acc);
+ updateStats();
+ renderCards();
+}
+
+function renderCards(){
+ let acc=getAcc();
+ let html="";
+
+ acc.cards.forEach(c=>{
+  html+=`
+  <div class="card card-${c.rarity}">
+   <b>${c.equation}</b><br>
+   ${c.rarity.toUpperCase()}
+  </div>`;
+ });
+
+ collection.innerHTML=html || "Brak kart.";
+}
+
+window.onload = function(){
+ let savedUser = localStorage.getItem("currentUser");
+ if(savedUser){
+   let data = localStorage.getItem("user_"+savedUser);
+   if(data){
+     currentUser = savedUser;
+     auth.style.display="none";
+     game.style.display="block";
+     nick.innerText=savedUser;
+     updateStats();
+     renderCards();
+   }
+ }
+};
+
+</script>
+</body>
+</html>
+<script>
+const oldUpdateStats = updateStats;
+updateStats = function(){
+ let a=getAcc();
+ points.innerText=a.points;
+ level.innerText=Math.floor(a.points/5)+1;
+ if(document.getElementById('mathisy')) mathisy.innerText=a.mathisy||0;
+ if(document.getElementById('mathisyShop')) mathisyShop.innerText=a.mathisy||0;
+}
+
+const oldCheckAns = checkAns;
+checkAns = function(correct,eq,rar){
+ let v=Number(document.getElementById("ans").value);
+ if(v!==correct){ msg.innerText="❌ Zła odpowiedź"; return; }
+
+ let acc=getAcc();
+ acc.points++;
+ acc.mathisy=(acc.mathisy||0)+5;
+
+ acc.cards.push({equation:eq,rarity:rar});
+
+ if(!acc.first){
+   acc.first=true;
+   msg.innerText="🎉 Zdobyłeś pierwszy punkt! +5 Mathisów";
+ } else {
+   msg.innerText="✅ +5 Mathisów";
+ }
+
+ save(acc);
+ updateStats();
+ renderCards();
+}
+function buyPack(cost,rarity){
+ let acc=getAcc();
+ acc.mathisy=acc.mathisy||0;
+
+ if(acc.mathisy<cost){
+   alert("Masz za mało Mathisów!");
+   return;
+ }
+
+ acc.mathisy-=cost;
+
+ acc.cards.push({
+   equation:"Specjalna karta "+rarity.toUpperCase(),
+   rarity:rarity
+ });
+
+ save(acc);
+ updateStats();
+ renderCards();
+ alert("Kupiono paczkę "+rarity+"!");
+}
+</script>
